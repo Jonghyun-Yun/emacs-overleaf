@@ -36,6 +36,12 @@ Should be one of the following strings:
 (defvar-local overleaf-directory nil
   "A project directory to sync using Overleaf.")
 
+(defvar overleaf-last-sync-time nil
+"The last overleaf sync time.")
+
+(defcustom overleaf-ask-time-interval (* 5 60)
+  "A minimum time interval (in seconds) since the last sync to get asked again.")
+
 (defvar overleaf-posframe-last-position nil
   "Last position for which a overleaf posframe was displayed.")
 
@@ -99,31 +105,39 @@ Only `background` is used in this face."
   (progn
     (setq-local overleaf-directory (file-truename (projectile-project-name)))
     (setq-local overleaf-auto-sync nil)
-    (add-hook 'after-save-hook (lambda () (jyun/magit-push-overleaf overleaf-directory overleaf-auto-sync)))))
+    (add-hook 'after-save-hook (lambda ()
+                                 (when (or (eq major-mode 'latex-mode) (eq major-mode 'bibtex-mode))
+                                   (jyun/magit-push-overleaf overleaf-directory overleaf-auto-sync overleaf-last-sync-time))))))
 
-(defun jyun/magit-push-overleaf (directory &optional auto-sync)
+(defun jyun/magit-push-overleaf (directory &optional auto-sync overleaf-last-sync-time)
   "Use Magit to stage files if there are unstaged ones.
 Call asynchronous magit processes to commit and push staged files (if exist) to origin"
   (when directory
-    (let ((do-sync (cond ((string= auto-sync "always") t)
-                         ((string= auto-sync "ask") (y-or-n-p "Push updates to Overleaf? "))
-                         (t nil)) )
-          (default-directory (magit-toplevel directory)))
-      (if do-sync
-          (when (or (magit-anything-unstaged-p) (magit-anything-staged-p))
-            (magit-with-toplevel
-              (magit-stage-1 "--u" magit-buffer-diff-files))
-            (let ((message (overleaf-commit-message-format)))
-              (magit-run-git-async "commit" "-m" message)
-              (magit-run-git-async "push" "origin" "master")
-              )
-            (overleaf-posframe-show-posframe "A buffer has been synced with Overleaf."))
-        (unless (string= auto-sync "never")
-          (overleaf-posframe-show-posframe
-           (propertize "A buffer is not being synced with Overleaf."
-                       'face
-                       `(:inherit 'error))))))))
+    (let ((check-time (overleaf--check-sync-time overleaf-last-sync-time)))
+      (let ((do-sync (cond ((string= auto-sync "always") t)
+                           ((string= auto-sync "ask") (if check-time (y-or-n-p "Push updates to Overleaf? ") nil))
+                           (t nil)) )
+            (default-directory (magit-toplevel directory)))
+        (if do-sync
+            (when (or (magit-anything-unstaged-p) (magit-anything-staged-p))
+              (magit-with-toplevel
+                (magit-stage-1 "--u" magit-buffer-diff-files))
+              (let ((message (overleaf-commit-message-format)))
+                (magit-run-git-async "commit" "-m" message)
+                (magit-run-git-async "push" "origin" "master")
+                )
+              (overleaf-posframe-show-posframe "A buffer has been synced with Overleaf.")
+              (setq-local overleaf-last-sync-time (current-time)))
+          (unless (or (string= auto-sync "never") (not check-time))
+            (overleaf-posframe-show-posframe
+             (propertize "A buffer is not being synced with Overleaf."
+                         'face
+                         `(:inherit 'error)))))))))
 
+(defun overleaf--check-sync-time (overleaf-last-sync-time)
+  "Check if required time passed since the last sync."
+    (or (not overleaf-last-sync-time)
+              (> (float-time (time-since overleaf-last-sync-time)) overleaf-ask-time-interval)))
 
 (defun overleaf-posframe-check-position ()
   "Update overleaf-posframe-last-position, returning t if there was no change."

@@ -19,6 +19,39 @@
 ;;
 ;;; Code:
 
+;;;; overleaf
+;; goal: project-wide minor mode to Pull changes from remote occasionally.
+;; check if the remote is https://git.overleaf.com/*
+;; list of major mode to push changes on save
+;; don't ask push too ofen (5 min after ask?, but print message that it's not synced)
+;; (define-minor-mode emacs-overleaf-mode
+;;   "Toggle projectr-local `emacs-overleaf-mode' with additional parameters."
+;;   :init-value nil
+;;   :global nil
+;;   (if emacs-overleaf-mode
+;;       (progn
+;;         (jyun/setup-overleaf-pull)
+;;         ;; (unless (derived-mode-p 'prog-mode))
+;;         (when (eq major-mode 'latex-mode)
+;;           (jyun/setup-overleaf-push)))
+;;     (progn
+;;       (setq-local overleaf-directory (file-truename (projectile-project-name)))
+;;       (setq-local overleaf-auto-sync nil)
+;;       (remove-hook 'projectile-after-switch-project-hook (lambda () (jyun/magit-pull-overleaf overleaf-directory))))
+;;     (when (eq major-mode "org-mode")
+;;       (remove-hook 'after-save-hook (lambda () (jyun/magit-push-overleaf overleaf-directory overleaf-auto-sync)))
+;;       )))
+
+
+;;         (string-match-p (regexp-quote "overleaf") (+vc--remote-homepage))
+
+;; (defun +vc--remote-homepage ()
+;;   (require 'browse-at-remote)
+;;   (or (let ((url (browse-at-remote--remote-ref)))
+;;         (cdr (browse-at-remote--get-url-from-remote (car url))))
+;;       (user-error "Can't find homepage for current project")))
+
+
 (require 'magit)
 (require 'posframe)
 (require 'projectile)
@@ -38,6 +71,12 @@ Should be one of the following strings:
 
 (defvar overleaf-last-sync-time nil
 "The last overleaf sync time.")
+
+(defvar overleaf-last-ask-time nil
+"The last time overleaf ask for push.")
+
+(defcustom overleaf-dont-ask-too-often-time-interval (* 5 60)
+  "If non-nil, you won't be asked for `overleaf-dont-ask-too-often-time-interval' (in seconds) since the last you asked.")
 
 (defcustom overleaf-ask-time-interval (* 5 60)
   "A minimum time interval (in seconds) since the last sync to get asked again.")
@@ -113,9 +152,14 @@ Only `background` is used in this face."
   "Use Magit to stage files if there are unstaged ones.
 Call asynchronous magit processes to commit and push staged files (if exist) to origin"
   (when directory
-    (let ((check-time (overleaf--check-sync-time overleaf-last-sync-time)))
+    (let ((check-time (overleaf--check-time overleaf-last-sync-time overleaf-ask-time-interval))
+          (ask-time (overleaf--check-time overleaf-last-ask-time overleaf-dont-ask-too-often-time-interval)))
       (let ((do-sync (cond ((string= auto-sync "always") t)
-                           ((string= auto-sync "ask") (if check-time (y-or-n-p "Push updates to Overleaf? ") nil))
+                           ((string= auto-sync "ask") (if (and check-time ask-time)
+                                                          (progn
+                                                            (setq-local overleaf-last-ask-time (current-time))
+                                                            (y-or-n-p "Push updates to Overleaf? ")
+                                                            ) nil))
                            (t nil)) )
             (default-directory (magit-toplevel directory)))
         (if do-sync
@@ -134,10 +178,10 @@ Call asynchronous magit processes to commit and push staged files (if exist) to 
                          'face
                          `(:inherit 'error)))))))))
 
-(defun overleaf--check-sync-time (overleaf-last-sync-time)
+(defun overleaf--check-time (overleaf-last-time overleaf-time-interval)
   "Check if required time passed since the last sync."
-    (or (not overleaf-last-sync-time)
-              (> (float-time (time-since overleaf-last-sync-time)) overleaf-ask-time-interval)))
+    (or (not overleaf-last-time)
+              (> (float-time (time-since overleaf-last-time)) overleaf-time-interval)))
 
 (defun overleaf-posframe-check-position ()
   "Update overleaf-posframe-last-position, returning t if there was no change."

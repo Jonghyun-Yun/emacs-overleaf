@@ -19,44 +19,38 @@
 ;;
 ;;; Code:
 
-;;;; overleaf
-;; goal: project-wide minor mode to Pull changes from remote occasionally.
-;; check if the remote is https://git.overleaf.com/*
-;; list of major mode to push changes on save
-;; don't ask push too ofen (5 min after ask?, but print message that it's not synced)
-;; (define-minor-mode emacs-overleaf-mode
-;;   "Toggle projectr-local `emacs-overleaf-mode' with additional parameters."
-;;   :init-value nil
-;;   :global nil
-;;   (if emacs-overleaf-mode
-;;       (progn
-;;         (jyun/setup-overleaf-pull)
-;;         ;; (unless (derived-mode-p 'prog-mode))
-;;         (when (eq major-mode 'latex-mode)
-;;           (jyun/setup-overleaf-push)))
-;;     (progn
-;;       (setq-local overleaf-directory (file-truename (projectile-project-name)))
-;;       (setq-local overleaf-auto-sync nil)
-;;       (remove-hook 'projectile-after-switch-project-hook (lambda () (jyun/magit-pull-overleaf overleaf-directory))))
-;;     (when (eq major-mode "org-mode")
-;;       (remove-hook 'after-save-hook (lambda () (jyun/magit-push-overleaf overleaf-directory overleaf-auto-sync)))
-;;       )))
-
-
-;;         (string-match-p (regexp-quote "overleaf") (+vc--remote-homepage))
-
-;; (defun +vc--remote-homepage ()
-;;   (require 'browse-at-remote)
-;;   (or (let ((url (browse-at-remote--remote-ref)))
-;;         (cdr (browse-at-remote--get-url-from-remote (car url))))
-;;       (user-error "Can't find homepage for current project")))
-
-
 (require 'magit)
+(require 'browse-at-remote)
 (require 'posframe)
 (require 'projectile)
 
-(defvar-local overleaf-auto-sync "ask"
+;;;; overleaf
+;; TODO: list of major mode to push changes on save
+(define-minor-mode emacs-overleaf-mode
+  "Toggle `emacs-overleaf-mode' with additional parameters."
+  :init-value nil
+  :global nil
+  (if emacs-overleaf-mode
+      (progn
+        (unless (emacs-overleaf--is-remote-overleaf)
+          (user-error "Not Overleaf project."))
+        (emacs-overleaf-setup))
+    (progn
+      (remove-hook 'projectile-after-switch-project-hook #'emacs-overleaf-after-switch-project)
+      (remove-hook 'after-save-hook #'emacs-overleaf-after-save))
+    ))
+
+(defun emacs-overleaf--remote-homepage ()
+  "Get the url of the remote."
+  (or (let ((url (browse-at-remote--remote-ref)))
+        (cdr (browse-at-remote--get-url-from-remote (car url))))
+      (user-error "Can't find the remote for current project")))
+
+(defun emacs-overleaf--is-remote-overleaf ()
+  "non-nil if the remote is overleaf repo."
+  (string-match-p (regexp-quote "overleaf") (emacs-overleaf--remote-homepage)))
+
+(defvar-local emacs-overleaf-auto-sync "ask"
   "Determines how saving a buffer will trigger pushing changes to Overleaf.
 
 Should be one of the following strings:
@@ -66,98 +60,114 @@ Should be one of the following strings:
 - nil:
 ")
 
-(defvar-local overleaf-directory nil
+(defvar-local emacs-overleaf-directory nil
   "A project directory to sync using Overleaf.")
 
-(defvar overleaf-last-sync-time nil
+(defvar emacs-overleaf-last-sync-time nil
 "The last overleaf sync time.")
 
-(defvar overleaf-last-ask-time nil
+(defvar emacs-overleaf-last-ask-time nil
 "The last time overleaf ask for push.")
 
-(defcustom overleaf-dont-ask-too-often-time-interval (* 5 60)
+(defcustom emacs-overleaf-dont-ask-too-often-time-interval (* 5 60)
   "If non-nil, you won't be asked for `overleaf-dont-ask-too-often-time-interval' (in seconds) since the last you asked.")
 
-(defcustom overleaf-ask-time-interval (* 5 60)
+(defcustom emacs-overleaf-ask-time-interval (* 5 60)
   "A minimum time interval (in seconds) since the last sync to get asked again.")
 
-(defvar overleaf-posframe-last-position nil
+(defvar emacs-overleaf-posframe-last-position nil
   "Last position for which a overleaf posframe was displayed.")
 
-(defcustom overleaf-posframe-parameters nil
-  "The frame parameters used by overleaf-posframe."
+(defcustom emacs-overleaf-posframe-parameters nil
+  "The frame parameters used by emacs-overleaf-posframe."
   :type 'string
-  :group 'overleaf-posframe)
+  :group 'emacs-overleaf-posframe)
 
-(defcustom overleaf-posframe-border-width 1
-  "The border width used by overleaf-posframe.
+(defcustom emacs-overleaf-posframe-border-width 1
+  "The border width used by emacs-overleaf-posframe.
 When 0, no border is showed."
-  :group 'overleaf-posframe
+  :group 'emacs-overleaf-posframe
   :type 'number)
 
-(defcustom overleaf-posframe-timeout 3
+(defcustom emacs-overleaf-posframe-timeout 3
   "The number of seconds after which the posframe will auto-hide."
-  :group 'overleaf-posframe
+  :group 'emacs-overleaf-posframe
   :type 'number)
 
-(defcustom overleaf-posframe-poshandler 'posframe-poshandler-frame-center
-  "The poshandler used by overleaf-posframe."
-  :group 'overleaf-posframe
+(defcustom emacs-overleaf-posframe-poshandler 'posframe-poshandler-frame-center
+  "The poshandler used by emacs-overleaf-posframe."
+  :group 'emacs-overleaf-posframe
   :type 'function)
 
-(defface overleaf-posframe-face
+(defface emacs-overleaf-posframe-face
   '((t :inherit default))
   "The background and foreground color of the posframe.
 `background' and `foreground` are used in this face."
-  :group 'overleaf-posframe)
+  :group 'emacs-overleaf-posframe)
 
-(defface overleaf-posframe-border-face
+(defface emacs-overleaf-posframe-border-face
   '((t (:background "gray50")))
   "The border color of the posframe.
 Only `background` is used in this face."
-  :group 'overleaf-posframe)
+  :group 'emacs-overleaf-posframe)
 
-(defvar overleaf-posframe-buffer "*overleaf-posframe-buffer*"
-  "The posframe-buffer used by overleaf-posframe.")
+(defvar emacs-overleaf-posframe-buffer "*overleaf-posframe-buffer*"
+  "The posframe-buffer used by emacs-overleaf-posframe.")
 
-(defun overleaf-commit-message-format ()
+(defun emacs-overleaf-commit-message-format ()
   "A commit message format."
   (format "Updates @ %s" (format-time-string "%Y-%m-%d %H:%M %Z")))
 
 
-(defun jyun/setup-overleaf-pull ()
-  "Add hook for local overleaf pull."
+(defun emacs-overleaf-after-switch-project ()
   (progn
-    (setq-local overleaf-directory (file-truename (projectile-project-name)))
-    (add-hook 'projectile-after-switch-project-hook (lambda () (jyun/magit-pull-overleaf overleaf-directory)))))
+    (setq-local emacs-overleaf-directory
+                (file-name-directory (file-truename (projectile-project-name))))
+    (emacs-overleaf-pull emacs-overleaf-directory)))
 
 
-(defun jyun/magit-pull-overleaf (directory)
+(defun emacs-overleaf-setup-pull ()
+  "Add hook for local overleaf pull."
+  (add-hook 'projectile-after-switch-project-hook #'emacs-overleaf-after-switch-project))
+
+
+(defun emacs-overleaf-pull (directory)
   "Run `git pull origin master' using asynchronous magit processes."
   (when directory
     (let ((default-directory (magit-toplevel directory)))
-    (magit-run-git-async "pull" "origin" "master"))))
+      (magit-run-git-async "pull" "origin" "master"))))
 
 
-(defun jyun/setup-overleaf-push ()
-  "Add hook for local overleaf push."
+(defun emacs-overleaf-after-save ()
   (progn
-    (setq-local overleaf-directory (file-truename (projectile-project-name)))
-    (setq-local overleaf-auto-sync nil)
-    (add-hook 'after-save-hook (lambda ()
-                                 (when (or (eq major-mode 'latex-mode) (eq major-mode 'bibtex-mode))
-                                   (jyun/magit-push-overleaf overleaf-directory overleaf-auto-sync overleaf-last-sync-time))))))
+    (setq-local emacs-overleaf-directory
+                (file-name-directory
+                 (file-truename (projectile-project-name))))
+    (when (or (eq major-mode 'latex-mode) (eq major-mode 'bibtex-mode))
+      (emacs-overleaf-push emacs-overleaf-directory emacs-overleaf-auto-sync emacs-overleaf-last-sync-time))))
 
-(defun jyun/magit-push-overleaf (directory &optional auto-sync overleaf-last-sync-time)
+
+(defun emacs-overleaf-setup-push ()
+  "Add hook for local overleaf push."
+    (add-hook 'after-save-hook #'emacs-overleaf-after-save))
+
+
+(defun emacs-overleaf-setup ()
+  "Add hook for local overleaf push and pull."
+  (progn (add-hook 'projectile-after-switch-project-hook #'emacs-overleaf-after-switch-project)
+         (add-hook 'after-save-hook #'emacs-overleaf-after-save)))
+
+
+(defun emacs-overleaf-push (directory &optional auto-sync last-sync-time)
   "Use Magit to stage files if there are unstaged ones.
 Call asynchronous magit processes to commit and push staged files (if exist) to origin"
   (when directory
-    (let ((check-time (overleaf--check-time overleaf-last-sync-time overleaf-ask-time-interval))
-          (ask-time (overleaf--check-time overleaf-last-ask-time overleaf-dont-ask-too-often-time-interval)))
+    (let ((check-time (emacs-overleaf--check-time last-sync-time emacs-overleaf-ask-time-interval))
+          (ask-time (emacs-overleaf--check-time emacs-overleaf-last-ask-time emacs-overleaf-dont-ask-too-often-time-interval)))
       (let ((do-sync (cond ((string= auto-sync "always") t)
                            ((string= auto-sync "ask") (if (and check-time ask-time)
                                                           (progn
-                                                            (setq-local overleaf-last-ask-time (current-time))
+                                                            (setq-local emacs-overleaf-last-ask-time (current-time))
                                                             (y-or-n-p "Push updates to Overleaf? ")
                                                             ) nil))
                            (t nil)) )
@@ -166,52 +176,52 @@ Call asynchronous magit processes to commit and push staged files (if exist) to 
             (when (or (magit-anything-unstaged-p) (magit-anything-staged-p))
               (magit-with-toplevel
                 (magit-stage-1 "--u" magit-buffer-diff-files))
-              (let ((message (overleaf-commit-message-format)))
+              (let ((message (emacs-overleaf-commit-message-format)))
                 (magit-run-git-async "commit" "-m" message)
                 (magit-run-git-async "push" "origin" "master")
                 )
-              (overleaf-posframe-show-posframe "A buffer has been synced with Overleaf.")
-              (setq-local overleaf-last-sync-time (current-time)))
+              (emacs-overleaf-posframe-show-posframe "A buffer has been synced with Overleaf.")
+              (setq-local last-sync-time (current-time)))
           (unless (or (string= auto-sync "never") (not check-time))
-            (overleaf-posframe-show-posframe
+            (emacs-overleaf-posframe-show-posframe
              (propertize "A buffer is not being synced with Overleaf."
                          'face
                          `(:inherit 'error)))))))))
 
-(defun overleaf--check-time (overleaf-last-time overleaf-time-interval)
+(defun emacs-overleaf--check-time (emacs-overleaf-last-time emacs-overleaf-time-interval)
   "Check if required time passed since the last sync."
-    (or (not overleaf-last-time)
-              (> (float-time (time-since overleaf-last-time)) overleaf-time-interval)))
+    (or (not emacs-overleaf-last-time)
+              (> (float-time (time-since emacs-overleaf-last-time)) emacs-overleaf-time-interval)))
 
-(defun overleaf-posframe-check-position ()
-  "Update overleaf-posframe-last-position, returning t if there was no change."
-  (equal overleaf-posframe-last-position
-         (setq overleaf-posframe-last-position
+(defun emacs-overleaf-posframe-check-position ()
+  "Update emacs-overleaf-posframe-last-position, returning t if there was no change."
+  (equal emacs-overleaf-posframe-last-position
+         (setq emacs-overleaf-posframe-last-position
                (list (current-buffer) (point)))))
 
 
-(defun overleaf-posframe-hidehandler (_info)
+(defun emacs-overleaf-posframe-hidehandler (_info)
   "Hide posframe if position has changed since last display."
-  (not (overleaf-posframe-check-position)))
+  (not (emacs-overleaf-posframe-check-position)))
 
 
-(defun overleaf-posframe-show-posframe (str)
+(defun emacs-overleaf-posframe-show-posframe (str)
   "Show overleaf sync status on the posframe"
-  (posframe-hide overleaf-posframe-buffer)
-  (overleaf-posframe-check-position)
-  (posframe-show overleaf-posframe-buffer
-                 :poshandler overleaf-posframe-poshandler
-                 :foreground-color (face-foreground 'overleaf-posframe-face nil t)
-                 :background-color (face-background 'overleaf-posframe-face nil t)
-                 :internal-border-width overleaf-posframe-border-width
-                 :internal-border-color (face-attribute 'overleaf-posframe-border-face :background)
+  (posframe-hide emacs-overleaf-posframe-buffer)
+  (emacs-overleaf-posframe-check-position)
+  (posframe-show emacs-overleaf-posframe-buffer
+                 :poshandler emacs-overleaf-posframe-poshandler
+                 :foreground-color (face-foreground 'emacs-overleaf-posframe-face nil t)
+                 :background-color (face-background 'emacs-overleaf-posframe-face nil t)
+                 :internal-border-width emacs-overleaf-posframe-border-width
+                 :internal-border-color (face-attribute 'emacs-overleaf-posframe-border-face :background)
                  :string str
-                 :timeout overleaf-posframe-timeout
-                 :hidehandler #'overleaf-posframe-hidehandler
-                 :override-parameters overleaf-posframe-parameters)
+                 :timeout emacs-overleaf-posframe-timeout
+                 :hidehandler #'emacs-overleaf-posframe-hidehandler
+                 :override-parameters emacs-overleaf-posframe-parameters)
   (let ((current-frame
          (buffer-local-value 'posframe--frame
-                             (get-buffer overleaf-posframe-buffer))))
+                             (get-buffer emacs-overleaf-posframe-buffer))))
     (redirect-frame-focus current-frame
                           (frame-parent current-frame))))
 

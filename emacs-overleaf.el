@@ -1,4 +1,4 @@
-;;; overleaf.el --- Using Emacs to edit Overleaf documents -*- lexical-binding: t; -*-
+;;; emacs-overleaf.el --- Using Emacs to edit Overleaf documents -*- lexical-binding: t; -*-
 ;;
 ;; Copyright (C) 2021 Jonghyun Yun
 ;;
@@ -123,7 +123,7 @@ Only `background` is used in this face."
   (progn
     (setq-local overleaf-directory
                 (file-name-directory (file-truename (projectile-project-name))))
-    (overleaf-pull emacs-overleaf-directory)))
+    (overleaf-pull overleaf-directory)))
 
 
 (defun overleaf-setup-pull ()
@@ -144,7 +144,7 @@ Only `background` is used in this face."
                 (file-name-directory
                  (file-truename (projectile-project-name))))
     (when (or (eq major-mode 'latex-mode) (eq major-mode 'bibtex-mode))
-      (overleaf-push emacs-overleaf-directory emacs-overleaf-auto-sync emacs-overleaf-last-sync-time))))
+      (overleaf-push overleaf-directory overleaf-auto-sync overleaf-last-sync-time))))
 
 
 (defun overleaf-setup-push ()
@@ -162,8 +162,8 @@ Only `background` is used in this face."
   "Use Magit to stage files if there are unstaged ones.
 Call asynchronous magit processes to commit and push staged files (if exist) to origin"
   (when directory
-    (let ((check-time (overleaf--check-time last-sync-time emacs-overleaf-ask-time-interval))
-          (ask-time (overleaf--check-time emacs-overleaf-last-ask-time emacs-overleaf-dont-ask-too-often-time-interval)))
+    (let ((check-time (overleaf--check-time last-sync-time overleaf-ask-time-interval))
+          (ask-time (overleaf--check-time overleaf-last-ask-time overleaf-dont-ask-too-often-time-interval)))
       (let ((do-sync (cond ((string= auto-sync "always") t)
                            ((string= auto-sync "ask") (if (and check-time ask-time)
                                                           (progn
@@ -188,10 +188,10 @@ Call asynchronous magit processes to commit and push staged files (if exist) to 
                          'face
                          `(:inherit 'error)))))))))
 
-(defun overleaf--check-time (emacs-overleaf-last-time emacs-overleaf-time-interval)
+(defun overleaf--check-time (overleaf-last-time overleaf-time-interval)
   "Check if required time passed since the last sync."
     (or (not overleaf-last-time)
-              (> (float-time (time-since overleaf-last-time)) emacs-overleaf-time-interval)))
+              (> (float-time (time-since overleaf-last-time)) overleaf-time-interval)))
 
 (defun overleaf-posframe-check-position ()
   "Update overleaf-posframe-last-position, returning t if there was no change."
@@ -226,5 +226,5 @@ Call asynchronous magit processes to commit and push staged files (if exist) to 
                           (frame-parent current-frame))))
 
 
-(provide 'overleaf)
-;;; overleaf.el ends here
+(provide 'emacs-overleaf)
+;;; emacs-overleaf.el ends here

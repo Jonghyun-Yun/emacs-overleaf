@@ -63,8 +63,14 @@ Should be one of the following strings:
 (defvar-local overleaf-directory nil
   "A project directory to sync using Overleaf.")
 
+(defun overleaf--set-directory ()
+  "Find a project directory"
+  (setq-local overleaf-directory
+                (file-name-directory
+                 (file-truename (projectile-project-name)))))
+
 (defvar overleaf-last-sync-time nil
-"The last overleaf sync time.")
+  "The last overleaf sync time.")
 
 (defvar overleaf-last-ask-time nil
 "The last time overleaf ask for push.")
@@ -120,10 +126,7 @@ Only `background` is used in this face."
 
 
 (defun overleaf-after-switch-project ()
-  (progn
-    (setq-local overleaf-directory
-                (file-name-directory (file-truename (projectile-project-name))))
-    (overleaf-pull overleaf-directory)))
+  (overleaf-pull overleaf-directory))
 
 
 (defun overleaf-setup-pull ()
@@ -139,12 +142,8 @@ Only `background` is used in this face."
 
 
 (defun overleaf-after-save ()
-  (progn
-    (setq-local overleaf-directory
-                (file-name-directory
-                 (file-truename (projectile-project-name))))
-    (when (or (eq major-mode 'latex-mode) (eq major-mode 'bibtex-mode))
-      (overleaf-push overleaf-directory overleaf-auto-sync overleaf-last-sync-time))))
+  (when (or (eq major-mode 'latex-mode) (eq major-mode 'bibtex-mode))
+    (overleaf-push overleaf-directory overleaf-auto-sync overleaf-last-sync-time)))
 
 
 (defun overleaf-setup-push ()
@@ -154,8 +153,10 @@ Only `background` is used in this face."
 
 (defun overleaf-setup ()
   "Add hook for local overleaf push and pull."
-  (progn (add-hook 'projectile-after-switch-project-hook #'overleaf-after-switch-project)
-         (add-hook 'after-save-hook #'overleaf-after-save)))
+  (progn
+    (overleaf--set-directory)
+    (add-hook 'projectile-after-switch-project-hook #'overleaf-after-switch-project)
+    (add-hook 'after-save-hook #'overleaf-after-save)))
 
 
 (defun overleaf-push (directory &optional auto-sync last-sync-time)

@@ -24,6 +24,10 @@
 (require 'posframe)
 (require 'projectile)
 
+(defgroup overleaf nil
+  "TODO"
+  :prefix "overleaf")
+
 ;;;; overleaf
 ;; TODO: list of major mode to push changes on save
 (define-minor-mode overleaf-mode
@@ -87,35 +91,35 @@ Should be one of the following strings:
 (defcustom overleaf-posframe-parameters nil
   "The frame parameters used by overleaf-posframe."
   :type 'string
-  :group 'overleaf-posframe)
+  :group 'overleaf)
 
 (defcustom overleaf-posframe-border-width 1
   "The border width used by overleaf-posframe.
 When 0, no border is showed."
-  :group 'overleaf-posframe
+  :group 'overleaf
   :type 'number)
 
 (defcustom overleaf-posframe-timeout 3
   "The number of seconds after which the posframe will auto-hide."
-  :group 'overleaf-posframe
+  :group 'overleaf
   :type 'number)
 
 (defcustom overleaf-posframe-poshandler 'posframe-poshandler-frame-center
   "The poshandler used by overleaf-posframe."
-  :group 'overleaf-posframe
+  :group 'overleaf
   :type 'function)
 
 (defface overleaf-posframe-face
   '((t :inherit default))
   "The background and foreground color of the posframe.
 `background' and `foreground` are used in this face."
-  :group 'overleaf-posframe)
+  :group 'overleaf)
 
 (defface overleaf-posframe-border-face
   '((t (:background "gray50")))
   "The border color of the posframe.
 Only `background` is used in this face."
-  :group 'overleaf-posframe)
+  :group 'overleaf)
 
 (defvar overleaf-posframe-buffer "*overleaf-posframe-buffer*"
   "The posframe-buffer used by overleaf-posframe.")

@@ -9,7 +9,7 @@
 ;; Version: 0.0.1
 ;; Keywords: Overleaf sync LaTeX
 ;; Homepage: https://github.com/jonghyun-yun/overleaf
-;; Package-Requires: ((emacs "26.1") (posframe "1.0.0") (projectile "2.5.0") (magit "3.0.0"))
+;; Package-Requires: ((emacs "26.1") (posframe "1.0.0") (projectile "2.5.0") (magit "3.0.0") (browse-at-remote))
 ;;
 ;; This file is not part of GNU Emacs.
 ;;

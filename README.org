@@ -1,0 +1,30 @@
+#+TITLE:   Emacs-Overleaf
+#+DATE:
+#+STARTUP: inlineimages nofold
+
+* Table of Contents :TOC_3:noexport:
+- [[#what-is-this][What is this?]]
+- [[#who-needs-this][Who needs this?]]
+- [[#motivation][Motivation]]
+- [[#what-does-this-do][What does this do?]]
+- [[#how-to-use][How to use]]
+
+* What is this?
+=Emacs-Overleaf= helps you sync a local Overleaf project with its remote.
+* Who needs this?
+Those who want to use Emacs to edit Overleaf documents in a local machine will be interested. If you pay extra dollars to sync Overleaf projects via Dropbox, this is not a right package for you.
+* Motivation
+Collaborators use Overleaf to share LaTeX documents. Rather than using an online Overleaf editor, I choose Emacs to edit the documents. To do so, I need to frequently sync an Overleaf project with a local project using =Git=. When I fail to do so, there is a high probability that I waste my time resolving merge conflicts.
+* What does this do?
+Upon switching to a local project using =projectile=, the local will be synced with the Overleaf project. Upon saving LaTeX or BibTeX buffer, this package can do the following actions depending on a value of its buffer-local variable, =overleaf-auto-sync=
+- nil: Occasionally show you a sync reminder;
+- "always": Commit and push local changes to Overleaf with auto-generated commit messages;
+- "ask": Ask if you want to commit and push local changes to Overleaf with auto-generated commit messages; or
+- "never": Do nothing.
+
+* How to use
+=config.el= needs either =(require 'emacs-overleaf)= or =(use-package emacs-overleaf :commands (overleaf-setup))=. The project's =origin= =master= should be set as the corresponding Overleaf project. The project's =.dir-local.el= needs to contain =(eval . (overleaf-setup))= as follows:
+#+begin_src emacs-lisp
+((nil . ((eval . (overleaf-setup)))))
+#+end_src
+Also, add =overleaf-auto-sync= to file-local-variable to determine what action will be performed after saving.

@@ -8,6 +8,7 @@
 - [[#motivation][Motivation]]
 - [[#what-does-this-do][What does this do?]]
 - [[#how-to-use][How to use]]
+- [[#caution][Caution]]
 
 * What is this?
 =Emacs-Overleaf= helps you sync a local Overleaf project with its remote.
@@ -28,3 +29,6 @@ Upon switching to a local project using =projectile=, the local will be synced w
 ((nil . ((eval . (overleaf-setup)))))
 #+end_src
 Also, add =overleaf-auto-sync= to file-local-variable to determine what action will be performed after saving.
+
+* Caution
+A local file that has not been staged won't be synced!

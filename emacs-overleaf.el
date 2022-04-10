@@ -14,7 +14,7 @@
 ;; This file is not part of GNU Emacs.
 ;;
 ;;; Commentary:
-;;
+;; https://www.reddit.com/r/emacs/comments/tni4th/working_with_overleaf_and_emacs/
 ;;  Description
 ;;
 ;;; Code:
@@ -142,7 +142,7 @@ Only `background` is used in this face."
   "Run `git pull origin master' using asynchronous magit processes."
   (when directory
     (let ((default-directory (magit-toplevel directory)))
-      (magit-run-git-async "pull" "origin" "master"))))
+      (magit-run-git-async "pull" "--rebase" "origin" "master"))))
 
 
 (defun overleaf-after-save ()
@@ -183,6 +183,7 @@ Call asynchronous magit processes to commit and push staged files (if exist) to 
                 (magit-stage-1 "--u" magit-buffer-diff-files))
               (let ((message (overleaf-commit-message-format)))
                 (magit-run-git-async "commit" "-m" message)
+                (magit-run-git-async "pull" "--rebase" "origin" "master")
                 (magit-run-git-async "push" "origin" "master")
                 )
               (overleaf-posframe-show-posframe "A buffer has been synced with Overleaf.")
